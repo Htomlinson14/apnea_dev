@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 # Imports scikit-learn
 from sklearn.model_selection import StratifiedKFold
 from sklearn import metrics
+from sklearn.model_selection import GridSearchCV
 
 
 def main(data=None, models=None, kfolds=5):
@@ -18,7 +19,10 @@ def main(data=None, models=None, kfolds=5):
     Run the main script.
 
     data is in format [xdata, ydata]
+
     models is in format dict(model_name:sckit-learn model)
+
+    If model is to be regularised, model name should end in 'reg'
     """
 
     # Set up plot
@@ -30,8 +34,6 @@ def main(data=None, models=None, kfolds=5):
 
     for model_name, model in models.items():
 
-        print("Fitting and testing model: {}".format(model_name))
-
         # Set up parameters
         mean_tpr = 0.0
         mean_fpr = np.linspace(0, 1, 100)
@@ -41,7 +43,8 @@ def main(data=None, models=None, kfolds=5):
         for i in range(kfolds):
 
             # Train model; update fpr and auc
-            fpr, tpr, auc = train_and_test(data, kfold_index[i], model)
+            fpr, tpr, auc = train_and_test(data, kfold_index[i], \
+            model, regularise=model_name[-3:] == 'reg')
             mean_tpr += interp(mean_fpr, fpr, tpr)
             mean_tpr[0] = 0.0
             mean_auc.append(auc)
@@ -57,7 +60,7 @@ def main(data=None, models=None, kfolds=5):
     plot_axis.set_ylim([-0.05, 1.05])
     plot_axis.set_xlabel('False Positive Rate')
     plot_axis.set_ylabel('True Positive Rate')
-    plot_axis.legend(loc="lower right")
+    plot_axis.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
 
 def make_kfold_index(data, kfolds):
@@ -73,13 +76,17 @@ def make_kfold_index(data, kfolds):
     return kfold_index
 
 
-def train_and_test(data, kfold_index, model):
+def train_and_test(data, kfold_index, model, regularise=False):
 
     """Train and test the model for a given fold of cross-validation."""
 
     # Create cross validation training and test sets
     data_train = [data[0].loc[kfold_index[0]], data[1].loc[kfold_index[0]]]
     data_test = [data[0].loc[kfold_index[1]], data[1].loc[kfold_index[1]]]
+
+    if regularise:
+        reg_coeffs = np.logspace(-6, 1, 10)
+        model = GridSearchCV(estimator=model, param_grid=dict(C=reg_coeffs), n_jobs=-1)
 
     # Fit model
     model.fit(data_train[0], data_train[1])
