@@ -36,7 +36,6 @@ def main(data=None, models=None, kfolds=5):
 
         # Set up parameters
         mean_tpr = 0.0
-        mean_fpr = np.linspace(0, 1, 100)
         mean_auc = []
 
         # Iterate through cross validation sets: fit and test models
@@ -45,7 +44,7 @@ def main(data=None, models=None, kfolds=5):
             # Train model; update fpr and auc
             fpr, tpr, auc = train_and_test(data, kfold_index[i], \
             model, regularise=model_name[-3:] == 'reg')
-            mean_tpr += interp(mean_fpr, fpr, tpr)
+            mean_tpr += interp(np.linspace(0, 1, 100), fpr, tpr)
             mean_tpr[0] = 0.0
             mean_auc.append(auc)
 
@@ -53,14 +52,33 @@ def main(data=None, models=None, kfolds=5):
         mean_tpr /= kfolds
         mean_tpr[-1] = 1.0
         mean_auc = np.mean(mean_auc)
-        plot_axis.plot(mean_fpr, mean_tpr, linestyle='-', \
-        label=model_name + ' (AUC = {:.3f})'.format(mean_auc), lw=2)
+        label = make_label(model_name, mean_tpr, np.linspace(0, 1, 100), mean_auc)
+        plot_axis.plot(np.linspace(0, 1, 100), mean_tpr, linestyle='-', label=label, lw=2)
 
     plot_axis.set_xlim([-0.05, 1.05])
     plot_axis.set_ylim([-0.05, 1.05])
     plot_axis.set_xlabel('False Positive Rate')
     plot_axis.set_ylabel('True Positive Rate')
     plot_axis.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
+
+def make_label(model_name, mean_tpr, mean_fpr, mean_auc):
+
+    """
+    Create label for the plot with the mean auc, sensitivity and specificity.
+
+    The sensitivity and specificity are chosen at the optimal threshold
+    determined by Youden's J Statistic.
+    """
+
+    mean_j_statistic = mean_tpr - mean_fpr
+    j_idx = np.argmax(mean_j_statistic)
+    sensitivity = mean_tpr[j_idx]
+    specificity = 1-mean_fpr[j_idx]
+    label = model_name + ' (AUC: {:.3f}, Sens: {:.3f}, Spec: {:.3f})'.format(mean_auc, \
+    sensitivity, specificity)
+
+    return label
 
 
 def make_kfold_index(data, kfolds):
