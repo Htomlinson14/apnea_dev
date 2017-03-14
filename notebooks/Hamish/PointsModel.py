@@ -16,9 +16,11 @@ class PointsModel():
                          'age': self.bin_age,
                          'zscore': self.bin_zscore}
         self.X = None
+        self.X_old = None
         self.y = None
         self.coefficients = None
         self.fitted = False
+        self.keep_variables = None
 
     def _getCoefficients(self, X, y):
         """
@@ -33,7 +35,6 @@ class PointsModel():
         self.keep_variables = keep_variables
         new_X = X[keep_variables]
         new_logit = sm.Logit(y, new_X)
-        new_logit.fit().params
         self.coefficients = dict(new_logit.fit().params)
         self.X_old = self.X.copy()
         self.X = new_X
@@ -60,6 +61,7 @@ class PointsModel():
                             and add column titles (for interpretability)""")
         X_input['total_points'] = 0
         for column in self.coefficients:
+            # import pdb; pdb.set_trace()
             vector = X_input[column]
             if column in self.bin_dict:
                 points = map(lambda x:
@@ -68,10 +70,10 @@ class PointsModel():
                                                 self.bin_dict[column][1]), vector)
             else:
                 points = vector
-            final_points = self.coefficients[column] * np.array(points)
+            final_points = self.coefficients[column] * np.array(list(points))
             X_input['total_points'] += final_points
         X_input['risk_score'] = X_input['total_points'].apply(self.logistic)
-        return X_input['total_points'], X_input['risk_score']
+        return X_input['total_points'].values, X_input['risk_score'].values
 
     def fit(self, X, y):
         """
@@ -79,14 +81,16 @@ class PointsModel():
         and then associates them with a risk score.
         """
         if isinstance(X, pd.core.frame.DataFrame):
-            self.X = X
+            self.X = X.copy()
         else:
             raise Exception("""X must be a Pandas dataframe. \
                             (use pd.DataFrame(arr) if X is numpy array, \
                             and add column titles (for interpretability)""")
         self.y = y
         self._getCoefficients(self.X, self.y)
-        self.X['total_points'], self.X['risk_score'] = self.predict(self.X)
+        total_points, risk_score = self.predict(self.X)
+        self.X.loc[:, 'total_points'] = total_points
+        self.X.loc[:, 'risk_score'] = risk_score
         self.fitted = True
 
     def predict_proba(self, X_input):
